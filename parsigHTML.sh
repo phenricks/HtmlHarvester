@@ -41,13 +41,44 @@ parse_html() {
     	printf "%*s\n\n" $(( (width + ${#title}) / 2 )) "Título da página: $title"
     	printf "[+] Buscando Hosts...\n\n"
     	sleep 2
-	domains=$(echo "$html_content" | grep "a href" | cut -d "/" -f3 | cut -d '"' -f1 | grep -v ">"  | grep -v "<" | sort -u)
+	local domains=$(echo "$html_content" | grep "a href" | cut -d "/" -f3 | cut -d '"' -f1 | grep -v ">"  | grep -v "<" | sort -u)
+	domains=$(echo "$domains" | grep -v '^$')
 	local domains_size=$(echo "$domains" | wc -l)
 	printf "[+] Encontrados $domains_size domínios únicos.\n"
 	sleep 2
-	printf "[+] Salvando os resultados em $1.txt...\n\n"
-	echo "$domains" > ./scans/domains-$1.txt
+	
+	host_resolver "$domains" "$1"
+
     fi
+}
+
+host_resolver() {
+    local domains="$1"
+    local filename="./scans/domains-$(echo "$2" | sed 's/[^a-zA-Z0-9]/_/g').txt" # Cria um nome de arquivo seguro
+    printf "[+] Resolvendo Hosts...\n\n"
+    
+    # Define larguras para cada coluna
+    local line_width=5
+    local address_width=30
+    local ip_width=15
+
+
+    printf "%-${line_width}s %-${address_width}s %s\n" "LINE" "ADDRESS" "IP"
+    printf "%-5s %-30s %s\n" "LINE" "ADDRESS" "IP" > "$filename"
+    index=1
+    for host in $domains; do
+        # Resolve o IP do host
+        local ip=$(host $host | grep "has address" | cut -d " " -f4)
+        if [ -z "$ip" ]; then
+            ip="NF"
+        fi
+
+        # Formata a saída para cada linha
+        printf "%-5d %-30s %-15s\n" "$index" "$host" "$ip" | tee -a "$filename"
+        ((index++))
+    done
+    
+    printf "\n[+] Salvando os resultados em $filename...\n\n"
 }
 
 trap draw_layout SIGWINCH # Captura redimensionamento do terminal
